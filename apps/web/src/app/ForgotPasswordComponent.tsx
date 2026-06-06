@@ -41,7 +41,8 @@ export default function ForgotPasswordComponent({
     }
 
     try {
-      const res = await fetch('http://localhost:8000/forgot-password', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${apiUrl}/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: forgotEmail })
@@ -138,7 +139,8 @@ export default function ForgotPasswordComponent({
     }
 
     try {
-      const res = await fetch('http://localhost:8000/reset-password', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${apiUrl}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
