@@ -41,7 +41,7 @@ export default function ForgotPasswordComponent({
     }
 
     try {
-      const res = await fetch('/api/forgot-password', {
+      const res = await fetch('http://localhost:8000/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: forgotEmail })
@@ -138,7 +138,7 @@ export default function ForgotPasswordComponent({
     }
 
     try {
-      const res = await fetch('/api/reset-password', {
+      const res = await fetch('http://localhost:8000/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
