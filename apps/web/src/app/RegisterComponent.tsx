@@ -293,16 +293,6 @@ export default function RegisterComponent({
       return;
     }
 
-    const storedUsers = localStorage.getItem('codepulse_users');
-    if (storedUsers) {
-      const users: UserProfile[] = JSON.parse(storedUsers);
-      const exists = users.some(u => u.correo.toLowerCase() === regCorreo.toLowerCase());
-      if (exists) {
-        setAlert({ type: 'error', message: 'Esta dirección de correo ya se encuentra registrada.' });
-        return;
-      }
-    }
-
     if (regPassword.length < 6) {
       setAlert({ type: 'error', message: 'La contraseña debe tener al menos 6 caracteres.' });
       return;
@@ -390,7 +380,7 @@ export default function RegisterComponent({
   };
 
   // Paso 3: Finalizar el registro (Crear Avatar y Nombre de usuario)
-  const handleRegisterStep3Finalize = (e: React.FormEvent) => {
+  const handleRegisterStep3Finalize = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!regUsername) {
@@ -398,17 +388,7 @@ export default function RegisterComponent({
       return;
     }
 
-    const storedUsers = localStorage.getItem('codepulse_users');
-    let users: UserProfile[] = [];
-    if (storedUsers) {
-      users = JSON.parse(storedUsers);
-    }
-
-    const usernameExists = users.some(u => u.username.toLowerCase() === regUsername.toLowerCase());
-    if (usernameExists) {
-      setAlert({ type: 'error', message: 'El nombre de usuario ya está en uso. Prueba con otro.' });
-      return;
-    }
+    setAlert({ type: 'info', message: 'Creando cuenta...' });
 
     // Serialización de opciones de avatar para construir la URL de api.dicebear.com
     let serializedAvatarOptions = `seed=${encodeURIComponent(regAvatarSeed)}&top=${avatarTop}&hairColor=${avatarHairColor}&eyes=${avatarEyes}&mouth=${avatarMouth}&skinColor=${avatarSkinColor}&clothing=${avatarClothing}&clothesColor=${avatarClothesColor}`;
@@ -429,28 +409,56 @@ export default function RegisterComponent({
     
     serializedAvatarOptions += `&clothingGraphic=${avatarClothingGraphic}&hatColor=${avatarHatColor}`;
 
-    // Construir el perfil del nuevo usuario
-    const newUser: UserProfile = {
-      nombre: regNombre,
-      apellido1: regApellido1,
-      apellido2: regApellido2 || undefined,
-      correo: regCorreo,
-      password: regPassword,
-      username: regUsername,
-      avatarStyle: 'avataaars',
-      avatarSeed: serializedAvatarOptions
+    const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?${serializedAvatarOptions}`;
+    const avatarConfig = {
+      seed: regAvatarSeed,
+      top: avatarTop,
+      hairColor: avatarHairColor,
+      eyes: avatarEyes,
+      mouth: avatarMouth,
+      skinColor: avatarSkinColor,
+      clothing: avatarClothing,
+      clothesColor: avatarClothesColor,
+      accessories: avatarAccessories,
+      eyebrows: avatarEyebrows,
+      facialHair: avatarFacialHair,
+      facialHairColor: avatarFacialHairColor,
+      clothingGraphic: avatarClothingGraphic,
+      hatColor: avatarHatColor
     };
 
-    // Guardar usuario en localStorage
-    users.push(newUser);
-    localStorage.setItem('codepulse_users', JSON.stringify(users));
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: regNombre,
+          apellido1: regApellido1,
+          apellido2: regApellido2 || undefined,
+          correo: regCorreo,
+          password: regPassword,
+          username: regUsername,
+          avatar_url: avatarUrl,
+          avatar_style: 'avataaars',
+          avatar_config: avatarConfig
+        })
+      });
 
-    setAlert({ type: 'success', message: '¡Registro finalizado con éxito! Redirigiéndote al inicio de sesión...' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlert({ type: 'error', message: data.detail || 'Error al registrar usuario.' });
+        return;
+      }
 
-    // Finalización
-    setTimeout(() => {
-      onSuccess();
-    }, 2000);
+      setAlert({ type: 'success', message: '¡Registro finalizado con éxito! Redirigiéndote al inicio de sesión...' });
+
+      // Finalización
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Error de conexión con el servidor.' });
+    }
   };
 
   // Construye la URL para visualizar la vista previa del avatar en tiempo real

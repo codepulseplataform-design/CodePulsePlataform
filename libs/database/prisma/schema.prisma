@@ -36,6 +36,8 @@ model usuarios {
   nivel          Int               @default(1)
   biografia      String?
   avatar_url     String?           @db.VarChar(512)
+  avatar_style   String?           @default("avataaars") @db.VarChar(50)
+  avatar_config  Json?
   rol            EnumRol           @default(estudiante)
   estado         EnumEstadoUsuario @default(activo)
   mfa_secreto    String?           @db.VarChar(128)

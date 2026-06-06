@@ -27,7 +27,7 @@ export default function LoginFormComponent({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Manejador del envío del formulario de inicio de sesión
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validar campos vacíos
@@ -36,23 +36,41 @@ export default function LoginFormComponent({
       return;
     }
 
-    // Obtener los usuarios registrados de localStorage
-    const storedUsers = localStorage.getItem('codepulse_users');
-    if (storedUsers) {
-      const users: UserProfile[] = JSON.parse(storedUsers);
-      // Buscar usuario que coincida con correo y contraseña
-      const user = users.find(
-        (u) => u.correo.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword
-      );
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correo: loginEmail,
+          password: loginPassword
+        })
+      });
 
-      if (user) {
-        setAlert({ type: 'success', message: '¡Sesión iniciada con éxito!' });
-        onSuccess(user, rememberMe);
-      } else {
-        setAlert({ type: 'error', message: 'El correo electrónico o la contraseña son incorrectos.' });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setAlert({ type: 'error', message: data.detail || 'El correo electrónico o la contraseña son incorrectos.' });
+        return;
       }
-    } else {
-      setAlert({ type: 'error', message: 'El correo electrónico o la contraseña son incorrectos.' });
+
+      setAlert({ type: 'success', message: '¡Sesión iniciada con éxito!' });
+      
+      // Pasar el usuario devuelto por la API junto con el token si se necesitara en un futuro
+      const loggedUser: UserProfile = {
+        nombre: data.user.nombre,
+        apellido1: '', // El backend actual en el login no devuelve los apellidos completos, pero se puede ajustar
+        correo: data.user.correo,
+        username: data.user.username,
+        avatarStyle: 'avataaars', // Podría venir del backend
+        avatarSeed: '', // Si la DB devuelve el URL completo, no se necesita el seed aquí o se extrae.
+      };
+      
+      // Guardamos el token en localStorage para futuras peticiones (simulación de sesión)
+      localStorage.setItem('codepulse_access_token', data.access_token);
+      
+      onSuccess(loggedUser, rememberMe);
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Error de conexión con el servidor.' });
     }
   };
 

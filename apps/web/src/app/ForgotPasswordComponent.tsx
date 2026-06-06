@@ -40,66 +40,61 @@ export default function ForgotPasswordComponent({
       return;
     }
 
-    // Buscar usuarios en localStorage por ahora funciona por local storage
-    const storedUsers = localStorage.getItem('codepulse_users');
-    if (storedUsers) {
-      const users: UserProfile[] = JSON.parse(storedUsers);
-      const userExists = users.some(u => u.correo.toLowerCase() === forgotEmail.toLowerCase());
+    try {
+      const res = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ correo: forgotEmail })
+      });
 
-      if (userExists) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedCode(code);
-        setIsSending(true);
-        setAlert({ type: 'info', message: 'Enviando código de verificación...' });
-
-        try {
-          const response = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: forgotEmail,
-              subject: 'Recuperación de contraseña - CodePulse',
-              title: 'Recuperar Contraseña',
-              message: 'Hemos recibido una solicitud para restablecer tu contraseña. Utiliza el siguiente código para completar el proceso:',
-              code: code
-            })
-          });
-          const result = await response.json();
-          if (result.success) {
-            if (result.simulated) {
-              setAlert({
-                type: 'info',
-                message: `Código enviado (Modo Simulación). Código: ${code}`
-              });
-            } else {
-              setAlert({
-                type: 'success',
-                message: `Hemos enviado un correo electrónico con el código de verificación.`
-              });
-            }
-            setForgotStep(2);
-          } else {
-            setAlert({
-              type: 'error',
-              message: `Error al enviar el correo: ${result.error || 'Inténtalo de nuevo'}. (Código simulado: ${code})`
-            });
-            setForgotStep(2);
-          }
-        } catch (err: any) {
-          console.error("Error sending email:", err);
-          setAlert({
-            type: 'error',
-            message: `No se pudo conectar con el servidor de correo. (Código simulado: ${code})`
-          });
-          setForgotStep(2);
-        } finally {
-          setIsSending(false);
-        }
-      } else {
-        setAlert({ type: 'error', message: 'La dirección de correo electrónico no está registrada.' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlert({ type: 'error', message: data.detail || 'Ocurrió un error.' });
+        return;
       }
-    } else {
-      setAlert({ type: 'error', message: 'No hay usuarios registrados en el sistema.' });
+
+      // El correo está (presumiblemente) registrado. Simulamos el envío de código.
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedCode(code);
+      setIsSending(true);
+      setAlert({ type: 'info', message: 'Enviando código de verificación...' });
+
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: forgotEmail,
+          subject: 'Recuperación de contraseña - CodePulse',
+          title: 'Recuperar Contraseña',
+          message: 'Hemos recibido una solicitud para restablecer tu contraseña. Utiliza el siguiente código para completar el proceso:',
+          code: code
+        })
+      });
+      const result = await response.json();
+      if (result.success) {
+        if (result.simulated) {
+          setAlert({
+            type: 'info',
+            message: `Código enviado (Modo Simulación). Código: ${code}`
+          });
+        } else {
+          setAlert({
+            type: 'success',
+            message: `Hemos enviado un correo electrónico con el código de verificación.`
+          });
+        }
+        setForgotStep(2);
+      } else {
+        setAlert({
+          type: 'error',
+          message: `Error al enviar el correo: ${result.error || 'Inténtalo de nuevo'}. (Código simulado: ${code})`
+        });
+        setForgotStep(2);
+      }
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Error de conexión con el servidor.' });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -122,15 +117,14 @@ export default function ForgotPasswordComponent({
     }
   };
 
-  // Paso 3: Guardar la nueva contraseña en localStorage
-  const handleForgotStep3 = (e: React.FormEvent) => {
+  // Paso 3: Guardar la nueva contraseña llamando al backend
+  const handleForgotStep3 = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!forgotPassword || !forgotConfirmPassword) {
       setAlert({ type: 'error', message: 'Por favor, completa ambos campos de contraseña.' });
       return;
     }
-
 
     if (forgotPassword.length < 6) {
       setAlert({ type: 'error', message: 'La contraseña debe tener al menos 6 caracteres.' });
@@ -143,25 +137,30 @@ export default function ForgotPasswordComponent({
       return;
     }
 
-    // Actualizar la contraseña del usuario en localStorage
-    const storedUsers = localStorage.getItem('codepulse_users');
-    if (storedUsers) {
-      let users: UserProfile[] = JSON.parse(storedUsers);
-      const userIndex = users.findIndex(u => u.correo.toLowerCase() === forgotEmail.toLowerCase());
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correo: forgotEmail,
+          new_password: forgotPassword
+        })
+      });
 
-      if (userIndex !== -1) {
-        users[userIndex].password = forgotPassword;
-        localStorage.setItem('codepulse_users', JSON.stringify(users));
-
-        setAlert({ type: 'success', message: 'Contraseña restablecida con éxito. Redirigiéndote al inicio de sesión...' });
-
-        // Finalizar y regresar al Login
-        setTimeout(() => {
-          onSuccess();
-        }, 2000);
-      } else {
-        setAlert({ type: 'error', message: 'Ocurrió un error al intentar actualizar el usuario.' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlert({ type: 'error', message: data.detail || 'Ocurrió un error al actualizar la contraseña.' });
+        return;
       }
+
+      setAlert({ type: 'success', message: 'Contraseña restablecida con éxito. Redirigiéndote al inicio de sesión...' });
+
+      // Finalizar y regresar al Login
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+    } catch (error) {
+      setAlert({ type: 'error', message: 'Error de conexión con el servidor.' });
     }
   };
 
