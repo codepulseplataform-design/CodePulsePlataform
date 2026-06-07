@@ -1,80 +1,87 @@
 import os
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.dialects.postgresql import UUID
+from fastapi import APIRouter, HTTPException, status, Depends
+from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import jwt
+from prisma import Prisma
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(__file__), '../../libs/database/.env'))
-    DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    DATABASE_URL = "postgresql+pg8000://postgres:postgres@localhost:5432/codepulse"
 
-# We must use pg8000 dialect for SQLAlchemy
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+pg8000://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
+#Aqui voy a poner la seguridad mau por si la vez esto es seguridad y funciones Helpers
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+SECRET_KEY = os.environ.get("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("CRÍTICO: No se encontró la variable SECRET_KEY en el entorno.")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-codepulse-key")
+#Mi algoritmo Hash y el tiempo de expiración del Token
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-class Usuario(Base):
-    __tablename__ = "usuarios"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    nombres = Column(String(50), nullable=False)
-    apellido1 = Column(String(50), nullable=False)
-    apellido2 = Column(String(50), nullable=True)
-    nombre_usuario = Column(String(50), unique=True, nullable=False)
-    correo = Column(String(255), unique=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    xp = Column(Integer, default=0)
-    nivel = Column(Integer, default=1)
-    biografia = Column(String, nullable=True)
-    avatar_url = Column(String(512), nullable=True)
-    avatar_style = Column(String(50), default="avataaars")
-    avatar_config = Column(JSON, nullable=True)
-    rol = Column(String, default="estudiante")
-    estado = Column(String, default="activo")
-    mfa_secreto = Column(String(128), nullable=True)
-    fecha_registro = Column(DateTime, default=datetime.utcnow)
-    actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
+#Función para encriptar una contraseña Esta cosita es para el register
+def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+#Función para verificar si la contraseña del login coincide con la de la BD 
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+# Genera el token que le devolvemos al usuario
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_db():
-    db = SessionLocal()
+
+
+# ---------------------------------------
+# Conexion a Prisma BD esta cosita es para cuando hagamos el register y login
+# ---------------------------------------
+
+async def get_prisma():
+    prisma = Prisma()
+    await prisma.connect()
     try:
-        yield db
+        yield prisma
     finally:
-        db.close()
+        if prisma.is_connected():
+            await prisma.disconnect()
+
+# ------------------------------------------------
+# Esquemas de entrada
+#_------------------------------------------------
+
+# 1. El molde para cuando alguien se registra en Code Pulse
+class UserRegister(BaseModel):
+    nombres: str
+    apellido1: str
+    apellido2: Optional[str] = None  
+    nombre_usuario: str
+    correo: EmailStr                 
+    password: str
+    avatar_url: Optional[str] = None
+    avatar_style: Optional[str] = "avataaars"
+    avatar_config: Optional[dict] = None
+
+class UserLogin(BaseModel):
+    correo: EmailStr
+    password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    correo: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    correo: EmailStr
+    new_password: str

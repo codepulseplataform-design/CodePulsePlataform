@@ -2,8 +2,7 @@ fastapi
 uvicorn
 pydantic[email]
 pydantic-settings
-SQLAlchemy
-pg8000
+prisma
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart

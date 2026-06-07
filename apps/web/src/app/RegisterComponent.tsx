@@ -429,16 +429,16 @@ export default function RegisterComponent({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${apiUrl}/register`, {
+      const res = await fetch(`${apiUrl}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre: regNombre,
+          nombres: regNombre,
           apellido1: regApellido1,
           apellido2: regApellido2 || undefined,
           correo: regCorreo,
           password: regPassword,
-          username: regUsername,
+          nombre_usuario: regUsername,
           avatar_url: avatarUrl,
           avatar_style: 'avataaars',
           avatar_config: avatarConfig
